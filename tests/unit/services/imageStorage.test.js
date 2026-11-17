@@ -7,7 +7,6 @@ const {
   PNG_BASE64, JPG_BASE64, GIF_BASE64, WEBP_BASE64, TEXT_BASE64,
 } = require('../../helpers/fixtures');
 
-const PUBLIC_DIR = path.resolve(__dirname, '..', '..', '..', 'public');
 const TEST_PRODUCT_ID = 'unit-test';
 
 describe('imageStorage', () => {
@@ -48,6 +47,10 @@ describe('imageStorage', () => {
   });
 
   describe('save / remove', () => {
+    it('em ambiente de teste grava fora da pasta public', () => {
+      expect(env.mediaDir).not.toContain(path.join('public', 'media'));
+    });
+
     afterAll(() => imageStorage.removeProductDir(TEST_PRODUCT_ID));
 
     it('grava o arquivo com nome único e remove depois', async () => {
@@ -58,10 +61,10 @@ describe('imageStorage', () => {
 
       expect(first).toMatch(new RegExp(`^media/products/${TEST_PRODUCT_ID}/[0-9a-f-]{36}\\.png$`));
       expect(first).not.toBe(second);
-      expect(fs.readFileSync(path.join(PUBLIC_DIR, first))).toEqual(buffer);
+      expect(fs.readFileSync(path.join(env.mediaDir, path.relative('media', first)))).toEqual(buffer);
 
       await imageStorage.remove(first);
-      expect(fs.existsSync(path.join(PUBLIC_DIR, first))).toBe(false);
+      expect(fs.existsSync(path.join(env.mediaDir, path.relative('media', first)))).toBe(false);
     });
 
     it('remove() não falha se o arquivo não existir', async () => {
