@@ -56,6 +56,7 @@ A API fica disponível em `http://localhost:3333` e a documentação em **`http:
 | --- | --- | --- |
 | `PORT` | Porta do servidor | `3333` |
 | `APP_URL` | URL base usada para montar o link das imagens | `http://localhost:3333` |
+| `MEDIA_DIR` | Pasta onde as imagens enviadas são gravadas | `public/media` |
 | `DB_HOST` / `DB_PORT` | Endereço do MySQL | `localhost` / `3308` |
 | `DB_USER` / `DB_PASSWORD` | Credenciais do MySQL | `root` / `root` |
 | `DB_NAME` | Nome do banco | `digital_store` |
@@ -73,7 +74,10 @@ A API fica disponível em `http://localhost:3333` e a documentação em **`http:
 | `npm run db:migrate:undo` | Desfaz todas as migrations |
 | `npm run db:seed` | Popula o banco com dados de exemplo |
 | `npm run db:reset` | Recria as tabelas e os dados de exemplo |
-| `npm test` | Executa os testes |
+| `npm test` | Executa todos os testes |
+| `npm run test:unit` | Executa só os testes unitários (não precisa de banco) |
+| `npm run test:integration` | Executa só os testes de integração (precisa do MySQL) |
+| `npm run test:coverage` | Executa os testes e gera o relatório de cobertura em `coverage/` |
 
 ## Endpoints
 
@@ -158,6 +162,25 @@ curl -X POST http://localhost:3333/v1/category \
 # Busca produtos de uma categoria até R$ 250
 curl "http://localhost:3333/v1/product/search?category_ids=1&price-range=0-250&fields=id,name,price"
 ```
+
+## Testes
+
+Os testes usam **Jest** e **Supertest** e estão divididos em dois projetos:
+
+| Tipo | Pasta | O que cobre |
+| --- | --- | --- |
+| Unitários | `tests/unit` | Helpers, validators, services e middlewares, com os models mockados (sem banco) |
+| Integração | `tests/integration` | Todas as rotas da API de ponta a ponta, em um banco MySQL de teste |
+
+```bash
+npm run test:unit         # rápido, não precisa de banco
+npm test                  # unitários + integração (o MySQL precisa estar rodando)
+npm run test:coverage     # com relatório de cobertura
+```
+
+Os testes de integração usam um banco separado, **`<DB_NAME>_test`** (ex.: `digital_store_test`). Ele é criado automaticamente e tem as migrations reaplicadas a cada execução, então os dados de desenvolvimento não são afetados. As imagens enviadas durante os testes ficam numa pasta temporária do sistema, e não em `public/media`.
+
+Resultado atual: **269 testes** e cerca de **98% de cobertura** de linhas.
 
 ## Banco de dados
 
@@ -256,6 +279,10 @@ projeto-backend/
 │   ├── app.js               # Configuração do Express
 │   └── server.js            # Inicialização do servidor
 ├── tests/
+│   ├── helpers/             # Dados de exemplo usados nos testes
+│   ├── integration/         # Testes das rotas com supertest + MySQL de teste
+│   └── unit/                # Testes isolados (models mockados)
+├── jest.config.js
 ├── .env.example
 ├── docker-compose.yml
 └── package.json

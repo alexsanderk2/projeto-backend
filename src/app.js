@@ -2,13 +2,13 @@
  * Configuração da aplicação Express (middlewares, rotas e tratamento de erros).
  * Separado do server.js para facilitar os testes com o supertest.
  */
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 
 const routes = require('./routes');
 const swaggerSpec = require('./config/swagger');
+const env = require('./config/env');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -18,7 +18,7 @@ app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
 // Arquivos estáticos (imagens dos produtos)
-app.use('/media', express.static(path.resolve(__dirname, '..', 'public', 'media')));
+app.use('/media', express.static(env.mediaDir));
 
 // Documentação interativa da API (Swagger UI)
 app.get('/docs.json', (req, res) => res.json(swaggerSpec));

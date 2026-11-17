@@ -9,7 +9,9 @@ const crypto = require('crypto');
 
 const env = require('../config/env');
 
-const PUBLIC_DIR = path.resolve(__dirname, '..', '..', 'public');
+// Caminhos salvos no banco começam com "media/", que corresponde a env.mediaDir
+const MEDIA_PREFIX = 'media';
+const toAbsolute = (relativePath) => path.join(env.mediaDir, path.relative(MEDIA_PREFIX, relativePath));
 
 // Tipos MIME aceitos e a extensão de arquivo correspondente.
 // Object.freeze + isSupportedType (Object.hasOwn) evitam aceitar chaves
@@ -40,11 +42,11 @@ function detectExtension(buffer) {
 
 /** Salva uma imagem (Buffer) com a extensão informada e devolve o caminho relativo. */
 async function save(productId, buffer, extension) {
-  const relativeDir = path.posix.join('media', 'products', String(productId));
+  const relativeDir = path.posix.join(MEDIA_PREFIX, 'products', String(productId));
   const fileName = `${crypto.randomUUID()}.${extension}`;
 
-  await fs.mkdir(path.join(PUBLIC_DIR, relativeDir), { recursive: true });
-  await fs.writeFile(path.join(PUBLIC_DIR, relativeDir, fileName), buffer);
+  await fs.mkdir(toAbsolute(relativeDir), { recursive: true });
+  await fs.writeFile(toAbsolute(path.posix.join(relativeDir, fileName)), buffer);
 
   return path.posix.join(relativeDir, fileName);
 }
@@ -52,12 +54,12 @@ async function save(productId, buffer, extension) {
 /** Remove um arquivo a partir do caminho relativo (ignora se não existir). */
 async function remove(relativePath) {
   if (!relativePath) return;
-  await fs.rm(path.join(PUBLIC_DIR, relativePath), { force: true });
+  await fs.rm(toAbsolute(relativePath), { force: true });
 }
 
 /** Remove a pasta de imagens de um produto. */
 async function removeProductDir(productId) {
-  await fs.rm(path.join(PUBLIC_DIR, 'media', 'products', String(productId)), { recursive: true, force: true });
+  await fs.rm(path.join(env.mediaDir, 'products', String(productId)), { recursive: true, force: true });
 }
 
 /** Monta a URL pública de uma imagem a partir do caminho relativo. */
