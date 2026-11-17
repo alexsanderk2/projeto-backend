@@ -121,7 +121,11 @@ function buildSearchWhere({ match, categoryIds, priceRange, options }) {
   }
 
   if (priceRange) {
-    conditions.push({ price: { [Op.between]: [priceRange.min, priceRange.max] } });
+    // FLOAT tem precisão simples (59.9 é gravado como 59.900001...), então a
+    // faixa é alargada em meio centavo para incluir os valores das bordas.
+    // Comparar a coluna diretamente (sem ROUND) mantém o uso do índice.
+    const tolerance = 0.005;
+    conditions.push({ price: { [Op.between]: [priceRange.min - tolerance, priceRange.max + tolerance] } });
   }
 
   options.forEach(({ key, values }) => {
@@ -215,7 +219,10 @@ async function syncCategories(productId, categoryIds, transaction) {
  * após o commit, para manter disco e banco consistentes.
  */
 async function applyImageOperations(productId, operations, transaction, files) {
-  const existing = await ProductImage.findAll({ where: { product_id: productId }, transaction });
+  // FOR UPDATE: impede que duas atualizações simultâneas alterem as mesmas imagens
+  const existing = await ProductImage.findAll({
+    where: { product_id: productId }, transaction, lock: transaction.LOCK.UPDATE,
+  });
   const byId = new Map(existing.map((image) => [image.id, image]));
 
   for (const op of operations) {
@@ -226,14 +233,12 @@ async function applyImageOperations(productId, operations, transaction, files) {
       await image.destroy({ transaction });
       files.toRemove.push(image.path);
     } else if (op.action === 'replace') {
-      // Sem type, mantém a extensão atual do arquivo
-      const type = op.type || `image/${image.path.split('.').pop()}`;
-      const newPath = await imageStorage.save(productId, op.buffer, type);
+      const newPath = await imageStorage.save(productId, op.buffer, op.extension);
       files.created.push(newPath);
       files.toRemove.push(image.path);
       await image.update({ path: newPath }, { transaction });
     } else if (op.action === 'create') {
-      const newPath = await imageStorage.save(productId, op.buffer, op.type);
+      const newPath = await imageStorage.save(productId, op.buffer, op.extension);
       files.created.push(newPath);
       await ProductImage.create({ product_id: productId, path: newPath, enabled: true }, { transaction });
     }
@@ -243,7 +248,9 @@ async function applyImageOperations(productId, operations, transaction, files) {
 
 /** Aplica as operações de opção (create/update/delete). */
 async function applyOptionOperations(productId, operations, transaction) {
-  const existing = await ProductOption.findAll({ where: { product_id: productId }, transaction });
+  const existing = await ProductOption.findAll({
+    where: { product_id: productId }, transaction, lock: transaction.LOCK.UPDATE,
+  });
   const byId = new Map(existing.map((option) => [option.id, option]));
 
   for (const op of operations) {
@@ -266,15 +273,24 @@ async function applyOptionOperations(productId, operations, transaction) {
  */
 async function withTransactionAndFiles(work) {
   const files = { created: [], toRemove: [] };
+  let result;
 
   try {
-    const result = await sequelize.transaction((transaction) => work(transaction, files));
-    await Promise.all(files.toRemove.map(imageStorage.remove));
-    return result;
+    result = await sequelize.transaction((transaction) => work(transaction, files));
   } catch (error) {
-    await Promise.all(files.created.map(imageStorage.remove));
+    // Transação desfeita: descarta os arquivos gravados durante a operação
+    await Promise.allSettled(files.created.map(imageStorage.remove));
     throw error;
   }
+
+  // Após o commit, remove os arquivos substituídos/excluídos. Uma falha aqui
+  // não deve desfazer a operação (que já foi salva), então só é registrada.
+  const cleanup = await Promise.allSettled(files.toRemove.map(imageStorage.remove));
+  cleanup
+    .filter((r) => r.status === 'rejected')
+    .forEach((r) => console.error('Falha ao remover imagem antiga:', r.reason));
+
+  return result;
 }
 
 /** Cria um produto com categorias, imagens e opções. */

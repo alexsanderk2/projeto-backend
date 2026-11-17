@@ -3,6 +3,8 @@ const {
 } = require('../utils/validation');
 
 const MIN_PASSWORD_LENGTH = 6;
+// O bcrypt considera apenas os primeiros 72 bytes da senha
+const MAX_PASSWORD_LENGTH = 72;
 
 /** Valida o payload de cadastro de usuário (POST /v1/user). */
 function validateCreate(body) {
@@ -10,12 +12,13 @@ function validateCreate(body) {
   const errors = [];
   const { firstname, surname, email, password, confirmPassword } = body;
 
-  if (!isNonEmptyString(firstname)) errors.push({ field: 'firstname', message: 'firstname é obrigatório' });
-  if (!isNonEmptyString(surname)) errors.push({ field: 'surname', message: 'surname é obrigatório' });
+  if (!isNonEmptyString(firstname)) errors.push({ field: 'firstname', message: 'firstname é obrigatório (até 255 caracteres)' });
+  if (!isNonEmptyString(surname)) errors.push({ field: 'surname', message: 'surname é obrigatório (até 255 caracteres)' });
   if (!isEmail(email)) errors.push({ field: 'email', message: 'email inválido' });
 
-  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
-    errors.push({ field: 'password', message: `password deve ter no mínimo ${MIN_PASSWORD_LENGTH} caracteres` });
+  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH
+    || Buffer.byteLength(password) > MAX_PASSWORD_LENGTH) {
+    errors.push({ field: 'password', message: `password deve ter no mínimo ${MIN_PASSWORD_LENGTH} caracteres e no máximo ${MAX_PASSWORD_LENGTH} bytes` });
   } else if (password !== confirmPassword) {
     errors.push({ field: 'confirmPassword', message: 'confirmPassword deve ser igual a password' });
   }
@@ -39,12 +42,12 @@ function validateUpdate(body) {
 
   if (isPresent(firstname)) {
     if (isNonEmptyString(firstname)) data.firstname = firstname.trim();
-    else errors.push({ field: 'firstname', message: 'firstname não pode ser vazio' });
+    else errors.push({ field: 'firstname', message: 'firstname não pode ser vazio (até 255 caracteres)' });
   }
 
   if (isPresent(surname)) {
     if (isNonEmptyString(surname)) data.surname = surname.trim();
-    else errors.push({ field: 'surname', message: 'surname não pode ser vazio' });
+    else errors.push({ field: 'surname', message: 'surname não pode ser vazio (até 255 caracteres)' });
   }
 
   if (isPresent(email)) {
@@ -67,7 +70,7 @@ function validateToken(body) {
   const { email, password } = body;
 
   if (!isEmail(email)) errors.push({ field: 'email', message: 'email inválido' });
-  if (!isNonEmptyString(password)) errors.push({ field: 'password', message: 'password é obrigatório' });
+  if (typeof password !== 'string' || password.length === 0) errors.push({ field: 'password', message: 'password é obrigatório' });
 
   assertValid(errors);
   return { email: email.trim().toLowerCase(), password };

@@ -6,6 +6,7 @@ const AppError = require('./AppError');
 
 const DEFAULT_LIMIT = 12;
 const DEFAULT_PAGE = 1;
+const MAX_LIMIT = 100;
 
 /**
  * Lê limit e page. limit=-1 retorna todos os itens (page é ignorado).
@@ -15,11 +16,12 @@ function parsePagination(query) {
   const limit = query.limit === undefined ? DEFAULT_LIMIT : Number(query.limit);
   const page = query.page === undefined ? DEFAULT_PAGE : Number(query.page);
 
-  if (!Number.isInteger(limit) || (limit < 1 && limit !== -1)) {
-    throw AppError.badRequest('limit deve ser um inteiro maior que zero ou -1');
+  if (!Number.isSafeInteger(limit) || limit > MAX_LIMIT || (limit < 1 && limit !== -1)) {
+    throw AppError.badRequest(`limit deve ser um inteiro entre 1 e ${MAX_LIMIT}, ou -1 para todos`);
   }
 
-  if (!Number.isInteger(page) || page < 1) {
+  // isSafeInteger evita valores como 1e20, que gerariam um OFFSET inválido no SQL
+  if (!Number.isSafeInteger(page) || page < 1 || (page - 1) * limit > Number.MAX_SAFE_INTEGER) {
     throw AppError.badRequest('page deve ser um inteiro maior que zero');
   }
 
@@ -55,4 +57,4 @@ function parseBoolean(value, name) {
   throw AppError.badRequest(`${name} deve ser true ou false`);
 }
 
-module.exports = { parsePagination, parseFields, parseBoolean, DEFAULT_LIMIT };
+module.exports = { parsePagination, parseFields, parseBoolean, DEFAULT_LIMIT, MAX_LIMIT };

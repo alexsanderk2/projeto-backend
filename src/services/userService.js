@@ -10,6 +10,9 @@ const { User } = require('../models');
 const AppError = require('../utils/AppError');
 
 const SALT_ROUNDS = 10;
+// Hash usado quando o e-mail não existe, para que o tempo de resposta do login
+// seja parecido nos dois casos (dificulta descobrir e-mails cadastrados)
+const DUMMY_HASH = bcrypt.hashSync('senha-inexistente', SALT_ROUNDS);
 const PUBLIC_ATTRIBUTES = ['id', 'firstname', 'surname', 'email'];
 
 /** Busca um usuário pelo ID ou lança 404. */
@@ -65,11 +68,12 @@ async function remove(id, authUserId) {
 async function generateToken({ email, password }) {
   const user = await User.scope('withPassword').findOne({ where: { email } });
 
-  // Mesma mensagem para e-mail ou senha incorretos (não revela qual falhou)
-  const valid = user && (await bcrypt.compare(password, user.password));
-  if (!valid) throw AppError.badRequest('Email ou senha inválidos');
+  // Sempre executa o bcrypt e usa a mesma mensagem para e-mail ou senha incorretos
+  const valid = await bcrypt.compare(password, user ? user.password : DUMMY_HASH);
+  if (!user || !valid) throw AppError.badRequest('Email ou senha inválidos');
 
   const token = jwt.sign({ sub: user.id, email: user.email }, env.jwt.secret, {
+    algorithm: 'HS256',
     expiresIn: env.jwt.expiresIn,
   });
 

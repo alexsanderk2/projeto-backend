@@ -15,7 +15,7 @@ function validate(body, { partial = false } = {}) {
 
   if (isPresent(name) || !partial) {
     if (isNonEmptyString(name)) data.name = name.trim();
-    else errors.push({ field: 'name', message: 'name é obrigatório' });
+    else errors.push({ field: 'name', message: 'name é obrigatório (até 255 caracteres)' });
   }
 
   if (isPresent(slug) || !partial) {
