@@ -8,13 +8,18 @@ const AppError = require('./AppError');
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+// Tamanho das colunas STRING (VARCHAR(255)) no banco
+const MAX_STRING_LENGTH = 255;
+
 const isPresent = (value) => value !== undefined && value !== null;
-const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
+const isNonEmptyString = (value, max = MAX_STRING_LENGTH) => (
+  typeof value === 'string' && value.trim().length > 0 && value.length <= max
+);
 const isBoolean = (value) => typeof value === 'boolean';
 const isNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 const isInteger = (value) => Number.isInteger(value);
-const isEmail = (value) => typeof value === 'string' && EMAIL_REGEX.test(value);
-const isSlug = (value) => typeof value === 'string' && SLUG_REGEX.test(value);
+const isEmail = (value) => typeof value === 'string' && value.length <= MAX_STRING_LENGTH && EMAIL_REGEX.test(value);
+const isSlug = (value) => typeof value === 'string' && value.length <= MAX_STRING_LENGTH && SLUG_REGEX.test(value);
 const isPlainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** Lança 400 caso existam erros acumulados. */
@@ -41,6 +46,7 @@ function parseId(value) {
 }
 
 module.exports = {
+  MAX_STRING_LENGTH,
   isPresent,
   isNonEmptyString,
   isBoolean,

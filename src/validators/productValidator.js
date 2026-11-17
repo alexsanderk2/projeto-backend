@@ -6,7 +6,7 @@
  * - values/value viram um array de strings
  */
 const {
-  isPresent, isNonEmptyString, isBoolean, isNumber, isInteger, isSlug, isPlainObject,
+  MAX_STRING_LENGTH, isPresent, isNonEmptyString, isBoolean, isNumber, isInteger, isSlug, isPlainObject,
   assertValid, assertBody,
 } = require('../utils/validation');
 const { MIME_EXTENSIONS } = require('../services/imageStorage');
@@ -27,7 +27,7 @@ function validateBaseFields(body, errors, partial) {
 
   if (required('name')) {
     if (isNonEmptyString(body.name)) data.name = body.name.trim();
-    else errors.push({ field: 'name', message: 'name é obrigatório' });
+    else errors.push({ field: 'name', message: 'name é obrigatório (até 255 caracteres)' });
   }
 
   if (required('slug')) {
@@ -60,8 +60,12 @@ function validateBaseFields(body, errors, partial) {
   }
 
   if (body.description !== undefined) {
-    if (body.description === null || typeof body.description === 'string') data.description = body.description;
-    else errors.push({ field: 'description', message: 'description deve ser texto' });
+    const { description } = body;
+    if (description === null || (typeof description === 'string' && description.length <= MAX_STRING_LENGTH)) {
+      data.description = description;
+    } else {
+      errors.push({ field: 'description', message: 'description deve ser texto de até 255 caracteres' });
+    }
   }
 
   return data;
@@ -195,7 +199,7 @@ function parseOptionFields(option, field, errors, isNew) {
 
   if (isNew || isPresent(option.title)) {
     if (isNonEmptyString(option.title)) data.title = option.title.trim();
-    else errors.push({ field: `${field}.title`, message: 'title é obrigatório' });
+    else errors.push({ field: `${field}.title`, message: 'title é obrigatório (até 255 caracteres)' });
   }
 
   if (isNew || isPresent(rawValues)) {
