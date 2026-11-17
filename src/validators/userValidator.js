@@ -16,8 +16,9 @@ function validateCreate(body) {
   if (!isNonEmptyString(surname)) errors.push({ field: 'surname', message: 'surname é obrigatório (até 255 caracteres)' });
   if (!isEmail(email)) errors.push({ field: 'email', message: 'email inválido' });
 
-  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-    errors.push({ field: 'password', message: `password deve ter entre ${MIN_PASSWORD_LENGTH} e ${MAX_PASSWORD_LENGTH} caracteres` });
+  if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH
+    || Buffer.byteLength(password) > MAX_PASSWORD_LENGTH) {
+    errors.push({ field: 'password', message: `password deve ter no mínimo ${MIN_PASSWORD_LENGTH} caracteres e no máximo ${MAX_PASSWORD_LENGTH} bytes` });
   } else if (password !== confirmPassword) {
     errors.push({ field: 'confirmPassword', message: 'confirmPassword deve ser igual a password' });
   }
