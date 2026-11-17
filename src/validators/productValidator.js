@@ -14,6 +14,9 @@ const { MIME_EXTENSIONS } = require('../services/imageStorage');
 const SHAPES = ['square', 'circle'];
 const OPTION_TYPES = ['text', 'color'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB por imagem
+const MAX_INT = 2147483647; // limite da coluna INT do MySQL
+const MAX_PRICE = 99999999;
+const MAX_RADIUS = 999;
 const BASE64_REGEX = /^[A-Za-z0-9+/]+={0,2}$/;
 const URL_REGEX = /^https?:\/\//i;
 
@@ -36,15 +39,15 @@ function validateBaseFields(body, errors, partial) {
   }
 
   if (required('price')) {
-    if (isNumber(body.price) && body.price >= 0) data.price = body.price;
-    else errors.push({ field: 'price', message: 'price é obrigatório e deve ser um número maior ou igual a zero' });
+    if (isNumber(body.price) && body.price >= 0 && body.price <= MAX_PRICE) data.price = body.price;
+    else errors.push({ field: 'price', message: `price é obrigatório e deve ser um número entre 0 e ${MAX_PRICE}` });
   }
 
   if (required('price_with_discount')) {
-    if (isNumber(body.price_with_discount) && body.price_with_discount >= 0) {
+    if (isNumber(body.price_with_discount) && body.price_with_discount >= 0 && body.price_with_discount <= MAX_PRICE) {
       data.price_with_discount = body.price_with_discount;
     } else {
-      errors.push({ field: 'price_with_discount', message: 'price_with_discount é obrigatório e deve ser um número maior ou igual a zero' });
+      errors.push({ field: 'price_with_discount', message: `price_with_discount é obrigatório e deve ser um número entre 0 e ${MAX_PRICE}` });
     }
   }
 
@@ -55,8 +58,8 @@ function validateBaseFields(body, errors, partial) {
   });
 
   if (isPresent(body.stock)) {
-    if (isInteger(body.stock) && body.stock >= 0) data.stock = body.stock;
-    else errors.push({ field: 'stock', message: 'stock deve ser um inteiro maior ou igual a zero' });
+    if (isInteger(body.stock) && body.stock >= 0 && body.stock <= MAX_INT) data.stock = body.stock;
+    else errors.push({ field: 'stock', message: `stock deve ser um inteiro entre 0 e ${MAX_INT}` });
   }
 
   if (body.description !== undefined) {
@@ -174,9 +177,11 @@ function validateImages(value, errors, partial) {
 
 /** Aceita radius como número (4) ou string ("4px"). */
 function parseRadius(value) {
-  if (isInteger(value) && value >= 0) return value;
+  let radius = null;
+  if (isInteger(value)) radius = value;
   const match = typeof value === 'string' && value.trim().match(/^(\d+)(px)?$/);
-  return match ? Number(match[1]) : null;
+  if (match) radius = Number(match[1]);
+  return radius !== null && radius >= 0 && radius <= MAX_RADIUS ? radius : null;
 }
 
 /** Aceita values (ou value) como array de strings ou string separada por vírgulas. */
@@ -221,7 +226,7 @@ function parseOptionFields(option, field, errors, isNew) {
   if (isPresent(option.radius)) {
     const radius = parseRadius(option.radius);
     if (radius !== null) data.radius = radius;
-    else errors.push({ field: `${field}.radius`, message: 'radius deve ser um inteiro (ex.: 4 ou "4px")' });
+    else errors.push({ field: `${field}.radius`, message: `radius deve ser um inteiro entre 0 e ${MAX_RADIUS} (ex.: 4 ou "4px")` });
   }
 
   return data;

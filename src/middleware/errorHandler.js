@@ -1,4 +1,6 @@
-const { ValidationError, UniqueConstraintError, ForeignKeyConstraintError } = require('sequelize');
+const {
+  ValidationError, UniqueConstraintError, ForeignKeyConstraintError, DatabaseError,
+} = require('sequelize');
 const AppError = require('../utils/AppError');
 
 /**
@@ -45,6 +47,12 @@ function errorHandler(err, req, res, next) {
 
   if (err instanceof ForeignKeyConstraintError) {
     return res.status(400).json({ message: 'Referência a um registro inexistente' });
+  }
+
+  // Rede de segurança: valor fora do intervalo ou texto maior que a coluna
+  const dataErrors = ['ER_WARN_DATA_OUT_OF_RANGE', 'ER_DATA_TOO_LONG', 'ER_TRUNCATED_WRONG_VALUE'];
+  if (err instanceof DatabaseError && dataErrors.includes(err.original?.code)) {
+    return res.status(400).json({ message: 'Valor fora do tamanho ou intervalo permitido' });
   }
 
   console.error(err);
