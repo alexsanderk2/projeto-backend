@@ -121,7 +121,11 @@ function buildSearchWhere({ match, categoryIds, priceRange, options }) {
   }
 
   if (priceRange) {
-    conditions.push({ price: { [Op.between]: [priceRange.min, priceRange.max] } });
+    // FLOAT tem precisão simples (59.9 é gravado como 59.900001...), então a
+    // faixa é alargada em meio centavo para incluir os valores das bordas.
+    // Comparar a coluna diretamente (sem ROUND) mantém o uso do índice.
+    const tolerance = 0.005;
+    conditions.push({ price: { [Op.between]: [priceRange.min - tolerance, priceRange.max + tolerance] } });
   }
 
   options.forEach(({ key, values }) => {
