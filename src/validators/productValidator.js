@@ -9,7 +9,7 @@ const {
   MAX_STRING_LENGTH, isPresent, isNonEmptyString, isBoolean, isNumber, isInteger, isSlug, isPlainObject,
   assertValid, assertBody,
 } = require('../utils/validation');
-const { MIME_EXTENSIONS } = require('../services/imageStorage');
+const { MIME_EXTENSIONS, isSupportedType, detectExtension } = require('../services/imageStorage');
 
 const SHAPES = ['square', 'circle'];
 const OPTION_TYPES = ['text', 'color'];
@@ -99,9 +99,13 @@ function decodeBase64(content) {
   return Buffer.from(raw, 'base64');
 }
 
-/** Valida tipo + conteúdo base64 de uma imagem nova. */
+/**
+ * Valida tipo + conteúdo base64 de uma imagem e confere se os bytes
+ * correspondem de fato a uma imagem do tipo declarado.
+ * @returns {{ extension: string, buffer: Buffer }|null}
+ */
 function parseImageContent(image, field, errors, { typeRequired = true } = {}) {
-  if ((typeRequired || isPresent(image.type)) && !MIME_EXTENSIONS[image.type]) {
+  if ((typeRequired || isPresent(image.type)) && !isSupportedType(image.type)) {
     errors.push({ field: `${field}.type`, message: `type deve ser um destes: ${Object.keys(MIME_EXTENSIONS).join(', ')}` });
     return null;
   }
@@ -117,7 +121,18 @@ function parseImageContent(image, field, errors, { typeRequired = true } = {}) {
     return null;
   }
 
-  return { type: image.type, buffer };
+  const extension = detectExtension(buffer);
+  if (!extension) {
+    errors.push({ field: `${field}.content`, message: 'content não é uma imagem PNG, JPG, GIF ou WEBP válida' });
+    return null;
+  }
+
+  if (isPresent(image.type) && MIME_EXTENSIONS[image.type] !== extension) {
+    errors.push({ field: `${field}.type`, message: `type não corresponde ao conteúdo da imagem (${extension})` });
+    return null;
+  }
+
+  return { extension, buffer };
 }
 
 /**
@@ -138,6 +153,7 @@ function validateImages(value, errors, partial) {
   }
 
   const operations = [];
+  const seenIds = new Set();
 
   value.forEach((image, index) => {
     const field = `images[${index}]`;
@@ -157,6 +173,12 @@ function validateImages(value, errors, partial) {
       errors.push({ field: `${field}.id`, message: 'id deve ser um inteiro positivo' });
       return;
     }
+
+    if (seenIds.has(image.id)) {
+      errors.push({ field: `${field}.id`, message: `A imagem ${image.id} foi informada mais de uma vez` });
+      return;
+    }
+    seenIds.add(image.id);
 
     if (image.deleted === true) {
       operations.push({ action: 'delete', id: image.id });
@@ -248,6 +270,7 @@ function validateOptions(value, errors, partial) {
   }
 
   const operations = [];
+  const seenIds = new Set();
 
   value.forEach((option, index) => {
     const field = `options[${index}]`;
@@ -266,6 +289,12 @@ function validateOptions(value, errors, partial) {
       errors.push({ field: `${field}.id`, message: 'id deve ser um inteiro positivo' });
       return;
     }
+
+    if (seenIds.has(option.id)) {
+      errors.push({ field: `${field}.id`, message: `A opção ${option.id} foi informada mais de uma vez` });
+      return;
+    }
+    seenIds.add(option.id);
 
     if (option.deleted === true) {
       operations.push({ action: 'delete', id: option.id });

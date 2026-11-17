@@ -11,18 +11,35 @@ const env = require('../config/env');
 
 const PUBLIC_DIR = path.resolve(__dirname, '..', '..', 'public');
 
-// Tipos MIME aceitos e a extensão de arquivo correspondente
-const MIME_EXTENSIONS = {
+// Tipos MIME aceitos e a extensão de arquivo correspondente.
+// Object.freeze + isSupportedType (Object.hasOwn) evitam aceitar chaves
+// herdadas do prototype, como "constructor" ou "__proto__".
+const MIME_EXTENSIONS = Object.freeze({
   'image/png': 'png',
   'image/jpg': 'jpg',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
   'image/gif': 'gif',
-};
+});
 
-/** Salva uma imagem (Buffer) e devolve o caminho relativo. */
-async function save(productId, buffer, mimeType) {
-  const extension = MIME_EXTENSIONS[mimeType];
+const isSupportedType = (mimeType) => typeof mimeType === 'string' && Object.hasOwn(MIME_EXTENSIONS, mimeType);
+
+/**
+ * Identifica o formato real da imagem pelos primeiros bytes (magic bytes).
+ * @returns {string|null} extensão (png, jpg, gif, webp) ou null se não for uma imagem suportada
+ */
+function detectExtension(buffer) {
+  const startsWith = (bytes, offset = 0) => bytes.every((byte, i) => buffer[offset + i] === byte);
+
+  if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'png';
+  if (startsWith([0xff, 0xd8, 0xff])) return 'jpg';
+  if (startsWith([0x47, 0x49, 0x46, 0x38])) return 'gif'; // "GIF8"
+  if (startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8)) return 'webp'; // RIFF....WEBP
+  return null;
+}
+
+/** Salva uma imagem (Buffer) com a extensão informada e devolve o caminho relativo. */
+async function save(productId, buffer, extension) {
   const relativeDir = path.posix.join('media', 'products', String(productId));
   const fileName = `${crypto.randomUUID()}.${extension}`;
 
@@ -49,4 +66,6 @@ function toUrl(relativePath) {
   return `${env.appUrl.replace(/\/$/, '')}/${relativePath}`;
 }
 
-module.exports = { save, remove, removeProductDir, toUrl, MIME_EXTENSIONS };
+module.exports = {
+  save, remove, removeProductDir, toUrl, detectExtension, isSupportedType, MIME_EXTENSIONS,
+};
