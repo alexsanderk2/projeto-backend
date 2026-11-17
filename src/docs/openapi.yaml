@@ -1,0 +1,542 @@
+openapi: 3.0.3
+info:
+  title: Digital Store API
+  version: 1.0.0
+  description: |
+    API REST da Digital Store para gerenciamento de **usuários**, **categorias** e **produtos**.
+
+    ### Autenticação
+    1. Cadastre um usuário em `POST /v1/user` (ou use o usuário do seeder: `admin@digitalstore.com` / `123@123`).
+    2. Gere o token em `POST /v1/user/token`.
+    3. Clique em **Authorize** e informe o token. Ele será enviado como `Authorization: Bearer <token>`.
+
+    Os endpoints `POST`, `PUT` e `DELETE` exigem token, exceto o cadastro de usuário e a geração do token.
+
+    ### Formato de erro
+    Todas as respostas de erro seguem o formato `{ "message": string, "details"?: [{ field, message }] }`.
+servers:
+  - url: http://localhost:3333
+    description: Desenvolvimento local
+
+tags:
+  - name: Usuários
+  - name: Autenticação
+  - name: Categorias
+  - name: Produtos
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    Limit:
+      name: limit
+      in: query
+      description: Itens por página. Use `-1` para buscar todos os itens.
+      schema: { type: integer, default: 12, example: 12 }
+    Page:
+      name: page
+      in: query
+      description: Página desejada. Ignorado quando `limit=-1`.
+      schema: { type: integer, default: 1, minimum: 1 }
+
+  responses:
+    BadRequest:
+      description: Dados da requisição incorretos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            message: Dados inválidos
+            details: [{ field: name, message: name é obrigatório }]
+    Unauthorized:
+      description: Token de autorização ausente, inválido ou expirado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { message: Token de autorização não informado }
+    Forbidden:
+      description: Usuário autenticado não pode alterar este recurso
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { message: Você só pode alterar a sua própria conta }
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { message: Recurso não encontrado }
+    NoContent:
+      description: Operação realizada com sucesso (sem corpo)
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+    # ----------------------------- Usuários -----------------------------
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        firstname: { type: string, example: user firstname }
+        surname: { type: string, example: user surname }
+        email: { type: string, format: email, example: user@mail.com }
+    UserCreate:
+      type: object
+      required: [firstname, surname, email, password, confirmPassword]
+      properties:
+        firstname: { type: string, example: user firstname }
+        surname: { type: string, example: user surname }
+        email: { type: string, format: email, example: user@mail.com }
+        password: { type: string, minLength: 6, example: '123@123' }
+        confirmPassword: { type: string, example: '123@123' }
+    UserUpdate:
+      type: object
+      description: Informe ao menos um dos campos.
+      properties:
+        firstname: { type: string, example: user firstname }
+        surname: { type: string, example: user surname }
+        email: { type: string, format: email, example: user@mail.com }
+    TokenRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: admin@digitalstore.com }
+        password: { type: string, example: '123@123' }
+    TokenResponse:
+      type: object
+      properties:
+        token: { type: string, example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... }
+
+    # ---------------------------- Categorias ----------------------------
+    Category:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: Shoes }
+        slug: { type: string, example: shoes }
+        use_in_menu: { type: boolean, example: true }
+    CategoryInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name: { type: string, example: Shoes }
+        slug: { type: string, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', example: shoes }
+        use_in_menu: { type: boolean, default: false, example: true }
+    CategoryList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Category' }
+        total: { type: integer, example: 10 }
+        limit: { type: integer, example: -1 }
+        page: { type: integer, example: 1 }
+
+    # ----------------------------- Produtos -----------------------------
+    ProductImage:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        content: { type: string, example: http://localhost:3333/media/products/1/image-01.png }
+    ProductOption:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        title: { type: string, example: Tamanho }
+        shape: { type: string, enum: [square, circle], example: square }
+        radius: { type: integer, example: 4 }
+        type: { type: string, enum: [text, color], example: text }
+        values:
+          type: array
+          items: { type: string }
+          example: [PP, GG, M]
+    Product:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        enabled: { type: boolean, example: true }
+        name: { type: string, example: Produto 01 }
+        slug: { type: string, example: produto-01 }
+        use_in_menu: { type: boolean, example: false }
+        stock: { type: integer, example: 10 }
+        description: { type: string, nullable: true, example: Descrição do produto 01 }
+        price: { type: number, example: 119.9 }
+        price_with_discount: { type: number, example: 99.9 }
+        category_ids:
+          type: array
+          items: { type: integer }
+          example: [1, 4]
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ProductImage' }
+        options:
+          type: array
+          items: { $ref: '#/components/schemas/ProductOption' }
+    ProductList:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Product' }
+        total: { type: integer, example: 120 }
+        limit: { type: integer, example: 12 }
+        page: { type: integer, example: 1 }
+
+    ImageNew:
+      type: object
+      required: [type, content]
+      properties:
+        type: { type: string, enum: [image/png, image/jpg, image/jpeg, image/webp, image/gif] }
+        content: { type: string, description: Imagem em base64 (aceita prefixo data URI) }
+    OptionNew:
+      type: object
+      required: [title, values]
+      properties:
+        title: { type: string, example: Tamanho }
+        shape: { type: string, enum: [square, circle], default: square }
+        radius:
+          oneOf: [{ type: integer }, { type: string, example: 4px }]
+          description: Número ou string no formato "4px"
+        type: { type: string, enum: [text, color], default: text }
+        values:
+          type: array
+          items: { type: string }
+          description: Também aceita a chave `value` ou uma string separada por vírgulas
+          example: [PP, GG, M]
+
+    ProductCreate:
+      type: object
+      required: [name, slug, price, price_with_discount]
+      properties:
+        enabled: { type: boolean, default: false }
+        name: { type: string }
+        slug: { type: string }
+        use_in_menu: { type: boolean, default: false }
+        stock: { type: integer, minimum: 0, default: 0 }
+        description: { type: string }
+        price: { type: number, minimum: 0 }
+        price_with_discount: { type: number, minimum: 0 }
+        category_ids: { type: array, items: { type: integer } }
+        images: { type: array, items: { $ref: '#/components/schemas/ImageNew' } }
+        options: { type: array, items: { $ref: '#/components/schemas/OptionNew' } }
+      example:
+        enabled: true
+        name: Produto 01
+        slug: produto-01
+        stock: 10
+        description: Descrição do produto 01
+        price: 119.9
+        price_with_discount: 99.9
+        category_ids: [1, 4]
+        images:
+          - type: image/png
+            content: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
+        options:
+          - { title: Tamanho, shape: square, radius: 4px, type: text, values: [PP, GG, M] }
+          - { title: Cor, shape: circle, type: color, values: ['#000', '#333'] }
+
+    ProductUpdate:
+      type: object
+      description: |
+        Todos os campos são opcionais. Quando informados:
+        - `category_ids` **substitui** as categorias do produto.
+        - `images`: `{type, content}` adiciona; `{id, deleted: true}` remove;
+          `{id, content: base64}` substitui o arquivo; `{id, content: url}` mantém a imagem.
+        - `options`: sem `id` cria; `{id, deleted: true}` remove; `{id, ...campos}` atualiza os campos informados.
+      properties:
+        enabled: { type: boolean }
+        name: { type: string }
+        slug: { type: string }
+        use_in_menu: { type: boolean }
+        stock: { type: integer }
+        description: { type: string }
+        price: { type: number }
+        price_with_discount: { type: number }
+        category_ids: { type: array, items: { type: integer } }
+        images: { type: array, items: { type: object } }
+        options: { type: array, items: { type: object } }
+      example:
+        enabled: true
+        name: Produto 01 atualizado
+        slug: produto-01-atualizado
+        stock: 20
+        price: 49.9
+        price_with_discount: 0
+        category_ids: [1]
+        images:
+          - { type: image/png, content: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg== }
+          - { id: 2, deleted: true }
+        options:
+          - { id: 1, deleted: true }
+          - { id: 2, radius: 10px, values: [42/43, 44/45] }
+          - { title: Tipo, shape: square, type: text, values: [100% algodão, 65% algodão] }
+
+paths:
+  # ================================ USUÁRIOS ================================
+  /v1/user/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Usuários]
+      summary: Obtém um usuário pelo ID
+      responses:
+        '200':
+          description: Usuário encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Usuários]
+      summary: Atualiza um usuário
+      description: O usuário autenticado só pode atualizar a própria conta.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdate' }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Usuários]
+      summary: Remove um usuário
+      description: O usuário autenticado só pode remover a própria conta.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/user:
+    post:
+      tags: [Usuários]
+      summary: Cadastra um usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreate' }
+      responses:
+        '201':
+          description: Usuário cadastrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /v1/user/token:
+    post:
+      tags: [Autenticação]
+      summary: Gera um token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TokenRequest' }
+      responses:
+        '200':
+          description: Token gerado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  # =============================== CATEGORIAS ===============================
+  /v1/category/search:
+    get:
+      tags: [Categorias]
+      summary: Lista categorias
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Page'
+        - name: fields
+          in: query
+          description: Campos retornados, separados por vírgula
+          schema: { type: string, example: 'name,slug' }
+        - name: use_in_menu
+          in: query
+          description: Filtra categorias que aparecem no menu
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Lista de categorias
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /v1/category/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Categorias]
+      summary: Obtém uma categoria pelo ID
+      responses:
+        '200':
+          description: Categoria encontrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Categorias]
+      summary: Atualiza uma categoria
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Categorias]
+      summary: Remove uma categoria
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/category:
+    post:
+      tags: [Categorias]
+      summary: Cadastra uma categoria
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201':
+          description: Categoria cadastrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ================================ PRODUTOS ================================
+  /v1/product/search:
+    get:
+      tags: [Produtos]
+      summary: Lista produtos com filtros
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Page'
+        - name: fields
+          in: query
+          description: Campos retornados, separados por vírgula
+          schema: { type: string, example: 'name,images,price' }
+        - name: match
+          in: query
+          description: Termo buscado no nome ou na descrição
+          schema: { type: string, example: Tênis }
+        - name: category_ids
+          in: query
+          description: IDs de categorias separados por vírgula
+          schema: { type: string, example: '1,4' }
+        - name: price-range
+          in: query
+          description: Faixa de preço no formato min-max
+          schema: { type: string, example: '100-200' }
+        - name: option[1]
+          in: query
+          description: |
+            Filtra pelos valores de uma opção: `option[<id ou título>]=valor1,valor2`.
+            Ex.: `option[45]=GG,PP` ou `option[Tamanho]=P,M`.
+          schema: { type: string, example: '39,40' }
+      responses:
+        '200':
+          description: Lista de produtos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /v1/product/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Produtos]
+      summary: Obtém um produto pelo ID
+      responses:
+        '200':
+          description: Produto encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Produtos]
+      summary: Atualiza um produto
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductUpdate' }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Produtos]
+      summary: Remove um produto
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/product:
+    post:
+      tags: [Produtos]
+      summary: Cadastra um produto
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductCreate' }
+      responses:
+        '201':
+          description: Produto cadastrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }

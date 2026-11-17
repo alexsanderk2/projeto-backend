@@ -5,8 +5,10 @@
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
 
 const routes = require('./routes');
+const swaggerSpec = require('./config/swagger');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -17,6 +19,10 @@ app.use(express.json({ limit: '20mb' }));
 
 // Arquivos estáticos (imagens dos produtos)
 app.use('/media', express.static(path.resolve(__dirname, '..', 'public', 'media')));
+
+// Documentação interativa da API (Swagger UI)
+app.get('/docs.json', (req, res) => res.json(swaggerSpec));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use(routes);
 
