@@ -40,8 +40,8 @@ components:
     Limit:
       name: limit
       in: query
-      description: Itens por página. Use `-1` para buscar todos os itens.
-      schema: { type: integer, default: 12, example: 12 }
+      description: Itens por página (1 a 100). Use `-1` para buscar todos os itens.
+      schema: { type: integer, default: 12, minimum: -1, maximum: 100, example: 12 }
     Page:
       name: page
       in: query
@@ -106,7 +106,7 @@ components:
         firstname: { type: string, example: user firstname }
         surname: { type: string, example: user surname }
         email: { type: string, format: email, example: user@mail.com }
-        password: { type: string, minLength: 6, example: '123@123' }
+        password: { type: string, minLength: 6, maxLength: 72, example: '123@123' }
         confirmPassword: { type: string, example: '123@123' }
     UserUpdate:
       type: object
@@ -206,7 +206,7 @@ components:
       required: [type, content]
       properties:
         type: { type: string, enum: [image/png, image/jpg, image/jpeg, image/webp, image/gif] }
-        content: { type: string, description: Imagem em base64 (aceita prefixo data URI) }
+        content: { type: string, description: 'Imagem PNG, JPG, GIF ou WEBP em base64, até 5 MB (aceita prefixo data URI). O conteúdo precisa corresponder ao type.' }
     OptionNew:
       type: object
       required: [title, values]

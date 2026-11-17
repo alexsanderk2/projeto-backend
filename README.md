@@ -93,7 +93,7 @@ A API fica disponível em `http://localhost:3333` e a documentação em **`http:
 
 | Método | Rota | Descrição | Sucesso |
 | --- | --- | --- | --- |
-| `GET` | `/v1/category/search` | Lista categorias (`limit`, `page`, `fields`, `use_in_menu`) | `200` |
+| `GET` | `/v1/category/search` | Lista categorias (`limit` de 1 a 100 ou `-1`, `page`, `fields`, `use_in_menu`) | `200` |
 | `GET` | `/v1/category/:id` | Busca uma categoria | `200` |
 | `POST` | `/v1/category` 🔒 | Cadastra uma categoria | `201` |
 | `PUT` | `/v1/category/:id` 🔒 | Atualiza uma categoria | `204` |
@@ -113,7 +113,7 @@ A API fica disponível em `http://localhost:3333` e a documentação em **`http:
 
 | Parâmetro | Exemplo | Descrição |
 | --- | --- | --- |
-| `limit` | `limit=30` | Itens por página (`-1` = todos). Padrão `12` |
+| `limit` | `limit=30` | Itens por página, de 1 a 100 (`-1` = todos). Padrão `12` |
 | `page` | `page=2` | Página. Padrão `1` |
 | `fields` | `fields=name,images,price` | Campos retornados |
 | `match` | `match=Tênis` | Termo no nome ou na descrição |
@@ -225,14 +225,15 @@ erDiagram
 - `email` (users) e `slug` (categories/products) são **únicos**, o que impede duplicidade e cria índices para as buscas.
 - As chaves estrangeiras usam **`ON DELETE CASCADE`**: ao remover um produto, suas imagens, opções e vínculos com categorias são removidos automaticamente.
 - `product_categories` usa **chave primária composta** `(product_id, category_id)`, que impede vínculos repetidos, e tem um índice extra em `category_id` para o filtro por categoria.
-- Há índices em `products.price` (filtro `price-range`) e `categories.use_in_menu`.
+- Há índices em `products.price` (filtro `price-range`), `product_options(title, product_id)` (filtro `option[Título]`) e `categories.use_in_menu`.
+- `price` segue o tipo `FLOAT` pedido no enunciado. Como o FLOAT tem precisão simples (59.9 é gravado como 59.900001…), o filtro `price-range` aplica uma tolerância de meio centavo nas bordas e as respostas arredondam para 2 casas.
 
 **Consultas eficientes**
 
 - A busca de produtos executa uma consulta paginada para os produtos e **no máximo uma consulta por relação** (categorias, imagens e opções) para todos os itens da página, evitando o problema de N+1.
 - As relações só são carregadas quando o campo é solicitado em `fields`.
 - Os filtros por categoria e por opção usam subconsultas (`id IN (SELECT ...)`) sobre colunas indexadas, sem duplicar linhas.
-- Criação e atualização de produtos rodam em **transação**: se algo falhar, nada é salvo no banco e as imagens já gravadas no disco são descartadas.
+- Criação e atualização de produtos rodam em **transação**, com as linhas de imagens e opções bloqueadas (`SELECT ... FOR UPDATE`) durante a atualização. Se algo falhar, nada é salvo no banco e as imagens já gravadas no disco são descartadas.
 
 ## Estrutura de pastas
 
@@ -268,6 +269,16 @@ O fluxo de uma requisição é: **rota → middleware (auth) → controller → 
 - **Token ausente ou inválido retorna `401`.** A seção 05 do enunciado cita `400`, mas cada endpoint lista `401 Unauthorized` para esse caso; seguimos o padrão HTTP (`401`).
 - **Autorização de usuários:** um usuário autenticado só pode alterar ou remover a própria conta (`403` caso contrário).
 - **Opções do produto:** o payload aceita tanto `values` quanto `value` (o enunciado usa os dois) e `radius` como número ou `"4px"`.
+- **Filtro `option[...]`:** uma chave numérica é tratada como ID da opção. Como cada opção pertence a um único produto, `option[45]` casa no máximo um produto; por isso também é aceito o título (`option[Tamanho]=P,M`), que filtra entre todos os produtos.
+- **Imagens:** são aceitas PNG, JPG, GIF e WEBP de até 5 MB. O conteúdo é conferido pelos primeiros bytes do arquivo e precisa corresponder ao `type` informado.
+- **Produtos desabilitados** (`enabled: false`) também aparecem na busca, já que o enunciado não define filtro para eles; o campo vem na resposta para o front-end decidir o que exibir.
+
+## Segurança
+
+- Senhas armazenadas com hash **bcrypt** (no máximo 72 bytes, limite do algoritmo) e nunca retornadas pela API.
+- Tokens JWT assinados com HS256. Tokens de usuários excluídos são rejeitados, e em produção a API não sobe sem um `JWT_SECRET` forte (32+ caracteres).
+- O login sempre executa a comparação bcrypt e usa a mesma mensagem de erro, dificultando descobrir quais e-mails estão cadastrados.
+- Todos os dados de entrada são validados (tipos, tamanho máximo dos textos e limites numéricos), e erros de banco são convertidos em respostas HTTP padronizadas.
 
 ## Autor
 
